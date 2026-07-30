@@ -1,0 +1,8 @@
+services:
+  app:
+    command: npm run dev
+    volumes:
+      - ./src:/app/src
+      - ./nodemon.json:/app/nodemon.json
+    environment:
+      NODE_ENV: development

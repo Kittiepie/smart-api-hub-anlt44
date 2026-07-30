@@ -1,0 +1,25 @@
+{
+  "tables": {
+    "users": {
+      "columns": {
+        "email": { "type": "string", "nullable": false, "unique": true },
+        "password": { "type": "string", "nullable": false },
+        "role": { "type": "string", "nullable": false, "default": "user" }
+      }
+    },
+    "posts": {
+      "columns": {
+        "title": { "type": "string", "nullable": false },
+        "content": { "type": "text" },
+        "user_id": { "type": "integer", "references": "users.id" }
+      }
+    },
+    "comments": {
+      "columns": {
+        "content": { "type": "text", "nullable": false },
+        "post_id": { "type": "integer", "references": "posts.id" },
+        "user_id": { "type": "integer", "references": "users.id" }
+      }
+    }
+  }
+}
