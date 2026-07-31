@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { db } from '../db';
 import { validateResource } from '../middleware/validateResource';
+import { authenticate, requireRole } from '../middleware/auth';
 import { parseFields } from '../utils/parseFields';
 import { getColumnTypes, getTextColumns } from '../utils/columnInfo';
 import { parsePagination, parseSort, parseFilters, applyFilters } from '../utils/queryHelpers';
@@ -19,6 +20,7 @@ export const resourceRouter = Router();
 
 resourceRouter.use('/:resource', validateResource);
 
+// GET routes stay public — no auth required for reads
 resourceRouter.get('/:resource', async (req: Request<ResourceParams>, res: Response) => {
     const { resource } = req.params;
     const query = req.query as Record<string, unknown>;
@@ -76,13 +78,13 @@ resourceRouter.get('/:resource/:id', async (req: Request<ResourceIdParams>, res:
     res.json(row);
 });
 
-resourceRouter.post('/:resource', async (req: Request<ResourceParams>, res: Response) => {
+resourceRouter.post('/:resource', authenticate, async (req: Request<ResourceParams>, res: Response) => {
     const { resource } = req.params;
     const [created] = await db(resource).insert(req.body).returning('*');
     res.status(201).json(created);
 });
 
-resourceRouter.put('/:resource/:id', async (req: Request<ResourceIdParams>, res: Response) => {
+resourceRouter.put('/:resource/:id', authenticate, async (req: Request<ResourceIdParams>, res: Response) => {
     const { resource, id } = req.params;
 
     const [updated] = await db(resource)
@@ -97,7 +99,7 @@ resourceRouter.put('/:resource/:id', async (req: Request<ResourceIdParams>, res:
     res.json(updated);
 });
 
-resourceRouter.patch('/:resource/:id', async (req: Request<ResourceIdParams>, res: Response) => {
+resourceRouter.patch('/:resource/:id', authenticate, async (req: Request<ResourceIdParams>, res: Response) => {
     const { resource, id } = req.params;
 
     const [updated] = await db(resource)
@@ -112,13 +114,18 @@ resourceRouter.patch('/:resource/:id', async (req: Request<ResourceIdParams>, re
     res.json(updated);
 });
 
-resourceRouter.delete('/:resource/:id', async (req: Request<ResourceIdParams>, res: Response) => {
-    const { resource, id } = req.params;
-    const deletedCount = await db(resource).where({ id }).del();
+resourceRouter.delete(
+    '/:resource/:id',
+    authenticate,
+    requireRole('admin'),
+    async (req: Request<ResourceIdParams>, res: Response) => {
+        const { resource, id } = req.params;
+        const deletedCount = await db(resource).where({ id }).del();
 
-    if (deletedCount === 0) {
-        throw new AppError(`${resource} with id ${id} not found`, 404);
+        if (deletedCount === 0) {
+            throw new AppError(`${resource} with id ${id} not found`, 404);
+        }
+
+        res.status(204).send();
     }
-
-    res.status(204).send();
-});
+);

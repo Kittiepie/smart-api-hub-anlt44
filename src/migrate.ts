@@ -12,10 +12,21 @@ function loadSchema(): SchemaFile {
     return JSON.parse(raw);
 }
 
-function inferColumnType(value: unknown): 'string' | 'integer' | 'float' | 'boolean' | 'jsonb' {
+function inferColumnType(
+    value: unknown,
+    context: { table: string; column: string }
+): 'string' | 'integer' | 'float' | 'boolean' | 'jsonb' {
     if (typeof value === 'boolean') return 'boolean';
     if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'float';
     if (typeof value === 'object' && value !== null) return 'jsonb';
+
+    if (value === null) {
+        console.warn(
+            `"${context.table}.${context.column}" has a null sample value — defaulting to string type. ` +
+            `Provide a real sample value (e.g. 0, "", false) in schema.json to control the actual type.`
+        );
+    }
+
     return 'string';
 }
 
@@ -40,9 +51,15 @@ async function createBaseTables(schema: SchemaFile): Promise<void> {
             for (const [colName, sampleValue] of Object.entries(sampleRow)) {
                 if (isForeignKeyColumn(colName)) continue;
 
-                const type = inferColumnType(sampleValue);
+                const type = inferColumnType(sampleValue, { table: tableName, column: colName });
                 switch (type) {
-                    case 'string': table.string(colName); break;
+                    case 'string':
+                        if (colName === 'email') {
+                            table.string(colName).unique();
+                        } else {
+                            table.string(colName);
+                        }
+                        break;
                     case 'integer': table.integer(colName); break;
                     case 'float': table.float(colName); break;
                     case 'boolean': table.boolean(colName); break;

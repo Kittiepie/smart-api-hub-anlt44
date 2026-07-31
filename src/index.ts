@@ -3,6 +3,7 @@ import { db } from './db';
 import { resourceRouter } from './routes/resource';
 import { runMigrations } from './migrate';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler';
+import { authRouter } from './routes/auth';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,6 +18,7 @@ app.get('/health/db', async (req: Request, res: Response) => {
     res.json({ db: 'connected', rows: rows.rows });
 });
 
+app.use('/auth', authRouter);
 app.use(resourceRouter);
 
 app.use(notFoundHandler);

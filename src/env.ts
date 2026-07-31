@@ -12,4 +12,5 @@ export const env = {
     DB_USER: requireEnv('DB_USER'),
     DB_PASSWORD: requireEnv('DB_PASSWORD'),
     DB_NAME: requireEnv('DB_NAME'),
+    JWT_SECRET: requireEnv('JWT_SECRET'),
 };
