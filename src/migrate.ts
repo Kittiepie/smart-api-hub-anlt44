@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { db } from './db';
 import { clearTableCache } from './utils/tableWhitelist';
+import { clearColumnTypeCache } from './utils/columnInfo';
 
 type SchemaFile = Record<string, Record<string, unknown>>;
 
@@ -18,10 +19,11 @@ function inferColumnType(value: unknown): 'string' | 'integer' | 'float' | 'bool
     return 'string';
 }
 
+// serve for relationship
 function isForeignKeyColumn(columnName: string): { refTable: string } | null {
     if (!columnName.endsWith('_id')) return null;
-    const prefix = columnName.slice(0, -'_id'.length);
-    return { refTable: `${prefix}s` };
+    const prefix = columnName.slice(0, -'_id'.length); // 'user_id' -> 'user'
+    return { refTable: `${prefix}s` }; // 'user' -> 'users'
 }
 
 async function createBaseTables(schema: SchemaFile): Promise<void> {
@@ -111,6 +113,7 @@ export async function runMigrations(): Promise<void> {
     await addForeignKeys(schema);
     await checkSchemaDrift(schema);
     clearTableCache();
+    clearColumnTypeCache();
     console.log('Migration check complete.');
 }
 

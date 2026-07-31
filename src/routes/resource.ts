@@ -2,6 +2,9 @@ import { Router, type Request, type Response } from 'express';
 import { db } from '../db';
 import { validateResource } from '../middleware/validateResource';
 import { parseFields } from '../utils/parseFields';
+import { getColumnTypes, getTextColumns } from '../utils/columnInfo';
+import { parsePagination, parseSort, parseFilters, applyFilters } from '../utils/queryHelpers';
+import { AppError } from '../utils/AppError';
 
 interface ResourceParams {
     resource: string;
@@ -16,16 +19,50 @@ export const resourceRouter = Router();
 
 resourceRouter.use('/:resource', validateResource);
 
-// GET /:resource?_fields=col1,col2
 resourceRouter.get('/:resource', async (req: Request<ResourceParams>, res: Response) => {
     const { resource } = req.params;
-    const fields = parseFields(req.query._fields);
+    const query = req.query as Record<string, unknown>;
 
-    const rows = await db(resource).select(fields ?? '*');
+    const fields = parseFields(query._fields);
+    const { page, limit } = parsePagination(query);
+    const sort = parseSort(query);
+    const filters = parseFilters(query);
+    const searchTerm = typeof query.q === 'string' ? query.q : undefined;
+
+    const columnTypes = await getColumnTypes(resource);
+    const validColumns = new Set(Object.keys(columnTypes));
+
+    let baseQuery = db(resource);
+    baseQuery = applyFilters(baseQuery, filters, validColumns);
+
+    if (searchTerm) {
+        const textColumns = await getTextColumns(resource);
+        if (textColumns.length > 0) {
+            baseQuery = baseQuery.where((builder) => {
+                for (const col of textColumns) {
+                    builder.orWhere(col, 'ilike', `%${searchTerm}%`);
+                }
+            });
+        }
+    }
+
+    const countResult = await baseQuery.clone().count<{ count: string }[]>({ count: '*' });
+    const totalCount = Number(countResult[0]?.count ?? 0);
+
+    let dataQuery = baseQuery.clone().select(fields ?? '*');
+
+    if (sort && validColumns.has(sort.column)) {
+        dataQuery = dataQuery.orderBy(sort.column, sort.order);
+    }
+
+    dataQuery = dataQuery.limit(limit).offset((page - 1) * limit);
+
+    const rows = await dataQuery;
+
+    res.setHeader('X-Total-Count', totalCount.toString());
     res.json(rows);
 });
 
-// GET /:resource/:id
 resourceRouter.get('/:resource/:id', async (req: Request<ResourceIdParams>, res: Response) => {
     const { resource, id } = req.params;
     const fields = parseFields(req.query._fields);
@@ -33,22 +70,18 @@ resourceRouter.get('/:resource/:id', async (req: Request<ResourceIdParams>, res:
     const row = await db(resource).select(fields ?? '*').where({ id }).first();
 
     if (!row) {
-        res.status(404).json({ error: `${resource} with id ${id} not found` });
-        return;
+        throw new AppError(`${resource} with id ${id} not found`, 404);
     }
 
     res.json(row);
 });
 
-// POST /:resource
 resourceRouter.post('/:resource', async (req: Request<ResourceParams>, res: Response) => {
     const { resource } = req.params;
-
     const [created] = await db(resource).insert(req.body).returning('*');
     res.status(201).json(created);
 });
 
-// PUT /:resource/:id — full replace
 resourceRouter.put('/:resource/:id', async (req: Request<ResourceIdParams>, res: Response) => {
     const { resource, id } = req.params;
 
@@ -58,14 +91,12 @@ resourceRouter.put('/:resource/:id', async (req: Request<ResourceIdParams>, res:
         .returning('*');
 
     if (!updated) {
-        res.status(404).json({ error: `${resource} with id ${id} not found` });
-        return;
+        throw new AppError(`${resource} with id ${id} not found`, 404);
     }
 
     res.json(updated);
 });
 
-// PATCH /:resource/:id — partial update
 resourceRouter.patch('/:resource/:id', async (req: Request<ResourceIdParams>, res: Response) => {
     const { resource, id } = req.params;
 
@@ -75,22 +106,18 @@ resourceRouter.patch('/:resource/:id', async (req: Request<ResourceIdParams>, re
         .returning('*');
 
     if (!updated) {
-        res.status(404).json({ error: `${resource} with id ${id} not found` });
-        return;
+        throw new AppError(`${resource} with id ${id} not found`, 404);
     }
 
     res.json(updated);
 });
 
-// DELETE /:resource/:id
 resourceRouter.delete('/:resource/:id', async (req: Request<ResourceIdParams>, res: Response) => {
     const { resource, id } = req.params;
-
     const deletedCount = await db(resource).where({ id }).del();
 
     if (deletedCount === 0) {
-        res.status(404).json({ error: `${resource} with id ${id} not found` });
-        return;
+        throw new AppError(`${resource} with id ${id} not found`, 404);
     }
 
     res.status(204).send();

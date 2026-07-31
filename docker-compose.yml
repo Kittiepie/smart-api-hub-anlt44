@@ -2,6 +2,7 @@ services:
   app:
     build: .
     container_name: mock_project_app
+    restart: unless-stopped
     ports:
       - "3000:3000"
     env_file:

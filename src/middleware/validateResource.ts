@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { isValidTable } from '../utils/tableWhitelist';
+import { AppError } from '../utils/AppError';
 
 interface ResourceParams {
     resource: string;
@@ -13,7 +14,7 @@ export async function validateResource(
     const { resource } = req.params;
 
     if (!resource || !(await isValidTable(resource))) {
-        res.status(404).json({ error: `Resource "${resource}" does not exist` });
+        next(new AppError(`Resource "${resource}" does not exist`, 404));
         return;
     }
 

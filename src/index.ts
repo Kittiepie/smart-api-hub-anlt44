@@ -2,13 +2,14 @@ import express, { type Request, type Response } from 'express';
 import { db } from './db';
 import { resourceRouter } from './routes/resource';
 import { runMigrations } from './migrate';
+import { notFoundHandler, errorHandler } from './middleware/errorHandler';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 app.get('/', (req: Request, res: Response) => {
-    res.json('Hello, world!');
+    res.json('Hello world!');
 });
 
 app.get('/health/db', async (req: Request, res: Response) => {
@@ -17,6 +18,19 @@ app.get('/health/db', async (req: Request, res: Response) => {
 });
 
 app.use(resourceRouter);
+
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+// unexpected section
+process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled Rejection:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught Exception:', err);
+    process.exit(1); 
+});
 
 async function start(): Promise<void> {
     await runMigrations();
