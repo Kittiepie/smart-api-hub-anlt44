@@ -18,8 +18,8 @@ export async function isValidTable(name: string): Promise<boolean> {
     return tables.has(name);
 }
 
-// Call this after running migrations, or on server start,
-// so newly created tables are picked up without waiting for cache expiry.
+// call this after running migrations, or on server start,
+// newly created tables are picked up without waiting for cache expiry.
 export function clearTableCache(): void {
     cachedTables = null;
 }

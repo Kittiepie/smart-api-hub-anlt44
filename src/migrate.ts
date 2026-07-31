@@ -1,22 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { db } from './db';
+import { clearTableCache } from './utils/tableWhitelist';
 
-type ColumnDef = {
-    type: 'string' | 'text' | 'integer' | 'boolean' | 'float' | 'date';
-    nullable?: boolean;
-    unique?: boolean;
-    default?: string | number | boolean;
-    references?: string; // ref smt like "users.id"
-};
-
-type TableDef = {
-    columns: Record<string, ColumnDef>;
-};
-
-type SchemaFile = {
-    tables: Record<string, TableDef>;
-};
+type SchemaFile = Record<string, Record<string, unknown>>;
 
 function loadSchema(): SchemaFile {
     const filePath = path.join(process.cwd(), 'schema.json');
@@ -24,8 +11,21 @@ function loadSchema(): SchemaFile {
     return JSON.parse(raw);
 }
 
-async function createBaseTables(schema: SchemaFile) {
-    for (const [tableName, tableDef] of Object.entries(schema.tables)) {
+function inferColumnType(value: unknown): 'string' | 'integer' | 'float' | 'boolean' | 'jsonb' {
+    if (typeof value === 'boolean') return 'boolean';
+    if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'float';
+    if (typeof value === 'object' && value !== null) return 'jsonb';
+    return 'string';
+}
+
+function isForeignKeyColumn(columnName: string): { refTable: string } | null {
+    if (!columnName.endsWith('_id')) return null;
+    const prefix = columnName.slice(0, -'_id'.length);
+    return { refTable: `${prefix}s` };
+}
+
+async function createBaseTables(schema: SchemaFile): Promise<void> {
+    for (const [tableName, sampleRow] of Object.entries(schema)) {
         const exists = await db.schema.hasTable(tableName);
         if (exists) {
             console.log(`Table "${tableName}" already exists, skipping.`);
@@ -35,79 +35,90 @@ async function createBaseTables(schema: SchemaFile) {
         await db.schema.createTable(tableName, (table) => {
             table.increments('id').primary();
 
-            for (const [colName, colDef] of Object.entries(tableDef.columns)) {
-                // Skip FK columns here — added in second pass
-                if (colDef.references) continue;
+            for (const [colName, sampleValue] of Object.entries(sampleRow)) {
+                if (isForeignKeyColumn(colName)) continue;
 
-                let column;
-                switch (colDef.type) {
-                    case 'string':
-                        column = table.string(colName);
-                        break;
-                    case 'text':
-                        column = table.text(colName);
-                        break;
-                    case 'integer':
-                        column = table.integer(colName);
-                        break;
-                    case 'boolean':
-                        column = table.boolean(colName);
-                        break;
-                    case 'float':
-                        column = table.float(colName);
-                        break;
-                    case 'date':
-                        column = table.date(colName);
-                        break;
-                    default:
-                        throw new Error(`Unsupported column type: ${colDef.type}`);
+                const type = inferColumnType(sampleValue);
+                switch (type) {
+                    case 'string': table.string(colName); break;
+                    case 'integer': table.integer(colName); break;
+                    case 'float': table.float(colName); break;
+                    case 'boolean': table.boolean(colName); break;
+                    case 'jsonb': table.jsonb(colName); break;
                 }
-
-                if (colDef.nullable === false) column.notNullable();
-                if (colDef.unique) column.unique();
-                if (colDef.default !== undefined) column.defaultTo(colDef.default);
             }
 
-            table.timestamps(true, true); // created_at, updated_at
+            table.timestamps(true, true);
         });
 
         console.log(`Created table "${tableName}".`);
     }
 }
 
-async function addForeignKeys(schema: SchemaFile) {
-    for (const [tableName, tableDef] of Object.entries(schema.tables)) {
-        const fkColumns = Object.entries(tableDef.columns).filter(
-            ([, colDef]) => colDef.references
-        );
+async function addForeignKeys(schema: SchemaFile): Promise<void> {
+    for (const [tableName, sampleRow] of Object.entries(schema)) {
+        const exists = await db.schema.hasTable(tableName);
+        if (!exists) continue;
 
-        if (fkColumns.length === 0) continue;
+        const fkColumns = Object.keys(sampleRow)
+            .map((colName) => ({ colName, fk: isForeignKeyColumn(colName) }))
+            .filter((entry) => entry.fk !== null);
 
-        await db.schema.alterTable(tableName, (table) => {
-            for (const [colName, colDef] of fkColumns) {
-                const [refTable, refColumn] = colDef.references!.split('.');
+        for (const { colName, fk } of fkColumns) {
+            const hasColumn = await db.schema.hasColumn(tableName, colName);
+            if (hasColumn) continue;
+
+            await db.schema.alterTable(tableName, (table) => {
                 table
                     .integer(colName)
                     .unsigned()
-                    .references(refColumn!)
-                    .inTable(refTable!)
+                    .references('id')
+                    .inTable(fk!.refTable)
                     .onDelete('CASCADE');
-            }
-        });
+            });
 
-        console.log(`Added foreign keys for "${tableName}".`);
+            console.log(`Added foreign key "${colName}" to "${tableName}".`);
+        }
     }
 }
 
-async function main() {
+// function to snap changes in schema.json (won't apply to foreign key referencing)
+async function checkSchemaDrift(schema: SchemaFile): Promise<void> {
+    for (const [tableName, sampleRow] of Object.entries(schema)) {
+        const exists = await db.schema.hasTable(tableName);
+        if (!exists) continue;
+
+        const actualColumns = await db(tableName).columnInfo();
+        const actualColumnNames = new Set(Object.keys(actualColumns));
+
+        const expectedNonFkColumns = Object.keys(sampleRow).filter(
+            (col) => !isForeignKeyColumn(col)
+        );
+        const missing = expectedNonFkColumns.filter((col) => !actualColumnNames.has(col));
+
+        if (missing.length > 0) {
+            console.warn(
+                `schema.json defines new column(s) for "${tableName}" not present in the database: ${missing.join(', ')}.\n` +
+                `This won't be applied automatically. Run "docker compose down -v" then "docker compose up --build" to rebuild with the updated schema.`
+            );
+        }
+    }
+}
+
+export async function runMigrations(): Promise<void> {
     const schema = loadSchema();
     await createBaseTables(schema);
     await addForeignKeys(schema);
-    console.log('Migration complete.');
-    process.exit(0);
+    await checkSchemaDrift(schema);
+    clearTableCache();
+    console.log('Migration check complete.');
 }
 
-main().catch((err) => {
-    console.error('Migration failed:', err);
-    process.exit(1);
-});
+if (require.main === module) {
+    runMigrations()
+        .then(() => process.exit(0))
+        .catch((err) => {
+            console.error('Migration failed:', err.message);
+            process.exit(1);
+        });
+}

@@ -1,6 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import { db } from './db';
 import { resourceRouter } from './routes/resource';
+import { runMigrations } from './migrate';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,6 +18,14 @@ app.get('/health/db', async (req: Request, res: Response) => {
 
 app.use(resourceRouter);
 
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+async function start(): Promise<void> {
+    await runMigrations();
+    app.listen(PORT, () => {
+        console.log(`Server is running on http://localhost:${PORT}`);
+    });
+}
+
+start().catch((err) => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
 });
