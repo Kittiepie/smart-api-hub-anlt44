@@ -58,12 +58,12 @@ https://mermaid.ai/d/6dd967c0-6291-4c6b-8b07-748c91866dc1
 | POST / PUT / PATCH (write) | Requires `Authorization: Bearer <token>` |
 | DELETE | Requires token **and** `role: admin` |
 
-`
+
 To get admin role for an user:
+`
 docker compose exec postgres psql -U appuser -d mydb -c "UPDATE users SET role='admin' WHERE email='test@x.com';"
 `
 
-`
 # Register
 curl -X POST http://localhost:3000/auth/register \\
   -H "Content-Type: application/json" \\
@@ -91,41 +91,4 @@ curl -X POST http://localhost:3000/auth/login \\
 
 `
 docker compose exec app npm test
-`
-
-
-## Project Structure
-
-`
-src/
-  app.ts             # Express app definition (no listen — testable)
-  index.ts           # Entry point: runs migrations, starts server
-  migrate.ts         # Reads schema.json, creates tables, detects drift
-  db.ts               # Knex/Postgres connection
-  env.ts              # Validated environment variables
-  openapi.ts          # Swagger/OpenAPI spec
-  routes/
-    auth.ts           # /auth/register, /auth/login
-    resource.ts        # Generic dynamic CRUD
-  middleware/
-    auth.ts             # authenticate, requireRole
-    autoCreateResource     # create schema if post on non-exist resource
-    errorHandler.ts
-    validate.ts
-    validateResource.ts
-    validateResourceBody.ts
-  utils/
-    AppError.ts           # global error class
-    columnInfo.ts
-    dynamicSchema.ts
-    jwt.ts
-    parseFields.ts
-    password.ts
-    queryHelpers.ts
-    relations.ts
-    schemaInference.ts
-    tableWhitelist.ts
-tests/
-  auth.test.ts
-  resource.test.ts
 `
