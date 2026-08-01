@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { db } from '../db';
 import { validateResource } from '../middleware/validateResource';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, AuthenticatedRequest, requireRole } from '../middleware/auth';
 import { parseFields } from '../utils/parseFields';
 import { getColumnTypes, getTextColumns } from '../utils/columnInfo';
 import { parsePagination, parseSort, parseFilters, applyFilters } from '../utils/queryHelpers';
@@ -9,6 +9,7 @@ import { AppError } from '../utils/AppError';
 import { applyEmbed, applyExpand, parseRelationParam } from '../utils/relations';
 import { validateResourceBody } from '../middleware/validateResourceBody';
 import { autoCreateResource } from '../middleware/autoCreateResource';
+import { recordAudit } from '../utils/audit';
 
 interface ResourceParams {
     resource: string;
@@ -97,9 +98,17 @@ resourceRouter.post(
     authenticate,
     autoCreateResource,
     validateResourceBody('create'),
-    async (req: Request<ResourceParams>, res: Response) => {
+    async (req: AuthenticatedRequest<ResourceParams>, res: Response) => {
         const { resource } = req.params;
         const [created] = await db(resource).insert(req.body).returning('*');
+
+        recordAudit({
+            userId: req.user!.id,
+            action: 'CREATE',
+            resourceName: resource,
+            recordId: created.id,
+        });
+
         res.status(201).json(created);
     }
 );
@@ -108,7 +117,7 @@ resourceRouter.put(
     '/:resource/:id',
     authenticate,
     validateResourceBody('replace'),
-    async (req: Request<ResourceIdParams>, res: Response) => {
+    async (req: AuthenticatedRequest<ResourceIdParams>, res: Response) => {
         const { resource, id } = req.params;
 
         const [updated] = await db(resource)
@@ -119,6 +128,13 @@ resourceRouter.put(
         if (!updated) {
             throw new AppError(`${resource} with id ${id} not found`, 404);
         }
+
+        recordAudit({
+            userId: req.user!.id,
+            action: 'UPDATE',
+            resourceName: resource,
+            recordId: updated.id,
+        });
 
         res.json(updated);
     }
@@ -128,7 +144,7 @@ resourceRouter.patch(
     '/:resource/:id',
     authenticate,
     validateResourceBody('update'),
-    async (req: Request<ResourceIdParams>, res: Response) => {
+    async (req: AuthenticatedRequest<ResourceIdParams>, res: Response) => {
         const { resource, id } = req.params;
 
         const [updated] = await db(resource)
@@ -140,6 +156,13 @@ resourceRouter.patch(
             throw new AppError(`${resource} with id ${id} not found`, 404);
         }
 
+        recordAudit({
+            userId: req.user!.id,
+            action: 'UPDATE',
+            resourceName: resource,
+            recordId: updated.id,
+        });
+
         res.json(updated);
     }
 );
@@ -148,13 +171,20 @@ resourceRouter.delete(
     '/:resource/:id',
     authenticate,
     requireRole('admin'),
-    async (req: Request<ResourceIdParams>, res: Response) => {
+    async (req: AuthenticatedRequest<ResourceIdParams>, res: Response) => {
         const { resource, id } = req.params;
         const deletedCount = await db(resource).where({ id }).del();
 
         if (deletedCount === 0) {
             throw new AppError(`${resource} with id ${id} not found`, 404);
         }
+
+        recordAudit({
+            userId: req.user!.id,
+            action: 'DELETE',
+            resourceName: resource,
+            recordId: id,
+        });
 
         res.status(204).send();
     }

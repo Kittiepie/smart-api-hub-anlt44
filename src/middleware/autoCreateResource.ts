@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { db } from '../db';
 import { isValidTable, clearTableCache } from '../utils/tableWhitelist';
 import { clearColumnTypeCache } from '../utils/columnInfo';
-import { inferColumnType, isForeignKeyColumn, isSafeTableName } from '../utils/schemaInterface';
+import { inferColumnType, isForeignKeyColumn, isSafeTableName } from '../utils/schemaInference';
 import { AppError } from '../utils/AppError';
 
 interface ResourceParams {
@@ -43,7 +43,7 @@ export async function autoCreateResource(
         for (const [col, value] of Object.entries(body)) {
             if (isForeignKeyColumn(col)) continue; // added in second pass below
 
-            const type = inferColumnType(value);
+            const type = inferColumnType(value, { table: resource, column: col });
             switch (type) {
                 case 'string': table.string(col); break;
                 case 'integer': table.integer(col); break;

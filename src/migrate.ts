@@ -3,7 +3,7 @@ import path from 'path';
 import { db } from './db';
 import { clearTableCache } from './utils/tableWhitelist';
 import { clearColumnTypeCache } from './utils/columnInfo';
-import { inferColumnType, isForeignKeyColumn } from './utils/schemaInterface';
+import { inferColumnType, isForeignKeyColumn } from './utils/schemaInference';
 
 type SchemaFile = Record<string, Record<string, unknown>>;
 
@@ -52,7 +52,7 @@ async function createBaseTables(schema: SchemaFile): Promise<void> {
             for (const [colName, sampleValue] of Object.entries(sampleRow)) {
                 if (isForeignKeyColumn(colName)) continue;
 
-                const type = inferColumnType(sampleValue);
+                const type = inferColumnType(sampleValue, { table: tableName, column: colName });
                 switch (type) {
                     case 'string':
                         if (colName === 'email') {
@@ -125,7 +125,27 @@ async function checkSchemaDrift(schema: SchemaFile): Promise<void> {
     }
 }
 
+async function ensureAuditLogTable(): Promise<void> {
+    const exists = await db.schema.hasTable('audit_logs');
+    if (exists) return;
+
+    await db.schema.createTable('audit_logs', (table) => {
+        table.increments('id').primary();
+        table.integer('user_id').unsigned().notNullable();
+        table.string('action').notNullable();    
+        table.string('resource_name').notNullable();
+        table.string('record_id').notNullable();
+        table.timestamp('timestamp').notNullable().defaultTo(db.fn.now());
+        // no foreign key to users.id — audit history should
+        // survive even if the referenced user is later deleted.
+    });
+
+    console.log('Created system table "audit_logs".');
+}
+
 export async function runMigrations(): Promise<void> {
+    await ensureAuditLogTable();
+
     const schema = loadSchema();
     await createBaseTables(schema);
     await addForeignKeys(schema);

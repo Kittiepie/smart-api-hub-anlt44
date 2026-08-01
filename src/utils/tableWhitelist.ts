@@ -1,5 +1,7 @@
 import { db } from '../db';
 
+const SYSTEM_TABLES = new Set(['audit_logs']);
+
 let cachedTables: Set<string> | null = null;
 
 export async function getValidTables(): Promise<Set<string>> {
@@ -9,7 +11,11 @@ export async function getValidTables(): Promise<Set<string>> {
         .select('table_name')
         .where({ table_schema: 'public' });
 
-    cachedTables = new Set(result.map((row) => row.table_name as string));
+    cachedTables = new Set(
+        result
+            .map((row) => row.table_name as string)
+            .filter((name) => !SYSTEM_TABLES.has(name))
+    );
     return cachedTables;
 }
 

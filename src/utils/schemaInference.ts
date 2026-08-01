@@ -1,10 +1,16 @@
 export type InferredType = 'string' | 'integer' | 'float' | 'boolean' | 'jsonb';
 
-export function inferColumnType(value: unknown): InferredType {
+export function inferColumnType(value: unknown, context: { table: string; column: string }): InferredType {
     if (typeof value === 'boolean') return 'boolean';
     if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'float';
     if (typeof value === 'object' && value !== null) return 'jsonb';
-    return 'string'; 
+    if (value === null) {
+        console.warn(
+            `"${context.table}.${context.column}" has a null sample value — defaulting to string type. ` +
+            `Provide a real sample value (e.g. 0, "", false) in schema.json to control the actual type.`
+        );
+    }
+    return 'string';
 }
 
 export function isForeignKeyColumn(columnName: string): { refTable: string } | null {

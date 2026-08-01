@@ -5,6 +5,7 @@ import { resourceRouter } from './routes/resource';
 import { authRouter } from './routes/auth';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler';
 import { openApiSpec } from './openapi';
+import { auditLogRouter } from './routes/auditLogs';
 
 export const app = express();
 app.use(express.json());
@@ -21,6 +22,7 @@ app.get('/health/db', async (req: Request, res: Response) => {
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
 app.use('/auth', authRouter);
+app.use('/audit-logs', auditLogRouter); // mount order matters: auditLogRouter is mounted before resourceRouter to avoid conflicts with resource names.
 app.use(resourceRouter);
 
 app.use(notFoundHandler);

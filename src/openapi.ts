@@ -151,5 +151,36 @@ export const openApiSpec = {
                 responses: { '204': { description: 'Deleted' }, '401': { description: 'Unauthorized' }, '403': { description: 'Forbidden — admin only' }, '404': { description: 'Not found' } },
             },
         },
+        '/audit-logs': {
+            get: {
+                summary: 'List recent audit log entries (admin only)',
+                security: [{ bearerAuth: [] }],
+                responses: {
+                    '200': {
+                        description: 'OK',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'array',
+                                    items: {
+                                        type: 'object',
+                                        properties: {
+                                            id: { type: 'integer' },
+                                            user_id: { type: 'integer' },
+                                            action: { type: 'string', enum: ['CREATE', 'UPDATE', 'DELETE'] },
+                                            resource_name: { type: 'string' },
+                                            record_id: { type: 'string' },
+                                            timestamp: { type: 'string', format: 'date-time' },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    '401': { description: 'Missing/invalid token', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                    '403': { description: 'Forbidden — admin only', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+                },
+            },
+        },
     },
 };

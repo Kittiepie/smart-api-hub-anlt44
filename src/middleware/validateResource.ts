@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { isValidTable } from '../utils/tableWhitelist';
 import { AppError } from '../utils/AppError';
-import { isSafeTableName } from '../utils/schemaInterface';
+import { isSafeTableName } from '../utils/schemaInference';
 
 interface ResourceParams {
     resource: string;

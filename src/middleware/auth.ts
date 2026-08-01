@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { JwtPayload, verifyToken } from '../utils/jwt';
 import { AppError } from '../utils/AppError';
 
-type AuthenticatedRequest<P> = Request<P> & { user?: JwtPayload };
+export type AuthenticatedRequest<P> = Request<P> & { user?: JwtPayload };
 
 export function authenticate<P = Record<string, string>>(
     req: AuthenticatedRequest<P>,

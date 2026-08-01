@@ -59,6 +59,11 @@ https://mermaid.ai/d/6dd967c0-6291-4c6b-8b07-748c91866dc1
 | DELETE | Requires token **and** `role: admin` |
 
 \`\`\`bash
+To get admin role for an user:
+docker compose exec postgres psql -U appuser -d mydb -c "UPDATE users SET role='admin' WHERE email='test@x.com';"
+\`\`\`
+
+\`\`\`bash
 # Register
 curl -X POST http://localhost:3000/auth/register \\
   -H "Content-Type: application/json" \\
@@ -118,7 +123,7 @@ src/
     password.ts
     queryHelpers.ts
     relations.ts
-    schemaInterface.ts
+    schemaInference.ts
     tableWhitelist.ts
 tests/
   auth.test.ts
