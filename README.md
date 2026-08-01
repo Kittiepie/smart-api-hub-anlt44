@@ -18,32 +18,32 @@ https://mermaid.ai/d/6dd967c0-6291-4c6b-8b07-748c91866dc1
 ## Getting Started
 
 1. Clone the repo:
-   \`\`\`bash
+   `
    git clone <your-repo-url>
    cd smart-api-hub-anlt44
-   \`\`\`
+   `
 
 2. Copy the example environment file and fill in a real JWT secret:
-   \`\`\`bash
+   `
    cp .env.example .env
-   \`\`\`
+   `
    Generate a secret:
-   \`\`\`bash
+   `
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-   \`\`\`
+   `
 
 3. Define your tables in `schema.json` (sample-row format — see the existing file for reference). Types are inferred automatically from each sample value.
 
 4. Start everything:
-   \`\`\`bash
+   `
    docker compose up --build
-   \`\`\`
+   `
    This builds the app image, starts PostgreSQL, waits for it to be healthy, then runs migrations automatically and starts the API on `http://localhost:3000`.
 
 5. (Optional - if needed) Seed sample data:
-   \`\`\`bash
+   `
    docker compose exec app npm run seed
-   \`\`\`
+   `
 
 ## API Docs
 
@@ -58,12 +58,12 @@ https://mermaid.ai/d/6dd967c0-6291-4c6b-8b07-748c91866dc1
 | POST / PUT / PATCH (write) | Requires `Authorization: Bearer <token>` |
 | DELETE | Requires token **and** `role: admin` |
 
-\`\`\`bash
+`
 To get admin role for an user:
 docker compose exec postgres psql -U appuser -d mydb -c "UPDATE users SET role='admin' WHERE email='test@x.com';"
-\`\`\`
+`
 
-\`\`\`bash
+`
 # Register
 curl -X POST http://localhost:3000/auth/register \\
   -H "Content-Type: application/json" \\
@@ -73,7 +73,7 @@ curl -X POST http://localhost:3000/auth/register \\
 curl -X POST http://localhost:3000/auth/login \\
   -H "Content-Type: application/json" \\
   -d '{"email":"a@test.com","password":"secret123"}'
-\`\`\`
+`
 
 ## Dynamic Query Reference
 
@@ -89,14 +89,14 @@ curl -X POST http://localhost:3000/auth/login \\
 
 ## Running Tests
 
-\`\`\`bash
+`
 docker compose exec app npm test
-\`\`\`
+`
 
 
 ## Project Structure
 
-\`\`\`
+`
 src/
   app.ts             # Express app definition (no listen — testable)
   index.ts           # Entry point: runs migrations, starts server
@@ -128,4 +128,4 @@ src/
 tests/
   auth.test.ts
   resource.test.ts
-\`\`\`
+`
