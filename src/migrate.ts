@@ -3,6 +3,7 @@ import path from 'path';
 import { db } from './db';
 import { clearTableCache } from './utils/tableWhitelist';
 import { clearColumnTypeCache } from './utils/columnInfo';
+import { inferColumnType, isForeignKeyColumn } from './utils/schemaInterface';
 
 type SchemaFile = Record<string, Record<string, unknown>>;
 
@@ -12,30 +13,30 @@ function loadSchema(): SchemaFile {
     return JSON.parse(raw);
 }
 
-function inferColumnType(
-    value: unknown,
-    context: { table: string; column: string }
-): 'string' | 'integer' | 'float' | 'boolean' | 'jsonb' {
-    if (typeof value === 'boolean') return 'boolean';
-    if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'float';
-    if (typeof value === 'object' && value !== null) return 'jsonb';
+// function inferColumnType(
+//     value: unknown,
+//     context: { table: string; column: string }
+// ): 'string' | 'integer' | 'float' | 'boolean' | 'jsonb' {
+//     if (typeof value === 'boolean') return 'boolean';
+//     if (typeof value === 'number') return Number.isInteger(value) ? 'integer' : 'float';
+//     if (typeof value === 'object' && value !== null) return 'jsonb';
 
-    if (value === null) {
-        console.warn(
-            `"${context.table}.${context.column}" has a null sample value — defaulting to string type. ` +
-            `Provide a real sample value (e.g. 0, "", false) in schema.json to control the actual type.`
-        );
-    }
+//     if (value === null) {
+//         console.warn(
+//             `"${context.table}.${context.column}" has a null sample value — defaulting to string type. ` +
+//             `Provide a real sample value (e.g. 0, "", false) in schema.json to control the actual type.`
+//         );
+//     }
 
-    return 'string';
-}
+//     return 'string';
+// }
 
-// serve for relationship
-function isForeignKeyColumn(columnName: string): { refTable: string } | null {
-    if (!columnName.endsWith('_id')) return null;
-    const prefix = columnName.slice(0, -'_id'.length); // 'user_id' -> 'user'
-    return { refTable: `${prefix}s` }; // 'user' -> 'users'
-}
+// // serve for relationship
+// function isForeignKeyColumn(columnName: string): { refTable: string } | null {
+//     if (!columnName.endsWith('_id')) return null;
+//     const prefix = columnName.slice(0, -'_id'.length); // 'user_id' -> 'user'
+//     return { refTable: `${prefix}s` }; // 'user' -> 'users'
+// }
 
 async function createBaseTables(schema: SchemaFile): Promise<void> {
     for (const [tableName, sampleRow] of Object.entries(schema)) {
@@ -51,7 +52,7 @@ async function createBaseTables(schema: SchemaFile): Promise<void> {
             for (const [colName, sampleValue] of Object.entries(sampleRow)) {
                 if (isForeignKeyColumn(colName)) continue;
 
-                const type = inferColumnType(sampleValue, { table: tableName, column: colName });
+                const type = inferColumnType(sampleValue);
                 switch (type) {
                     case 'string':
                         if (colName === 'email') {

@@ -1,9 +1,11 @@
 import type { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../utils/jwt';
+import { JwtPayload, verifyToken } from '../utils/jwt';
 import { AppError } from '../utils/AppError';
 
+type AuthenticatedRequest<P> = Request<P> & { user?: JwtPayload };
+
 export function authenticate<P = Record<string, string>>(
-    req: Request<P>,
+    req: AuthenticatedRequest<P>,
     res: Response,
     next: NextFunction
 ): void {
@@ -25,7 +27,7 @@ export function authenticate<P = Record<string, string>>(
 
 export function requireRole(...allowedRoles: string[]) {
     return function roleCheckMiddleware<P = Record<string, string>>(
-        req: Request<P>,
+        req: AuthenticatedRequest<P>,
         res: Response,
         next: NextFunction
     ): void {

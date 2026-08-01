@@ -1,6 +1,6 @@
 import type { Knex } from 'knex';
 
-const RESERVED_PARAMS = new Set(['_page', '_limit', '_sort', '_order', '_fields', 'q']);
+const RESERVED_PARAMS = new Set(['_page', '_limit', '_sort', '_order', '_fields', 'q', '_expand', '_embed']);
 const FILTER_SUFFIXES = ['_gte', '_lte', '_ne', '_like'] as const;
 type FilterOperator = (typeof FILTER_SUFFIXES)[number];
 
